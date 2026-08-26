@@ -79,9 +79,9 @@ const html = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>퇴직율 분석 대시보드 — 프로토타입 미리보기</title>
+<title>퇴직율 분석 대시보드</title>
 <style>
-  html, body { margin: 0; padding: 0; background: #F4F5F7; }
+  html, body { margin: 0; padding: 0; background: #EFF1F6; }
   #root { min-height: 100vh; }
 </style>
 </head>

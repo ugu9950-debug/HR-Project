@@ -9,9 +9,10 @@
  *
  * 옵션
  *   --기준일 2026-08-25   재직자 근속·당해연도 기말의 기준일 (기본: 워크북 기준설정 C4, 없으면 오늘)
- *   --연도 2024-2026      분석 기간 (기본: 워크북 기준설정 7행, 없으면 기준일 기준 최근 5년)
+ *   --연도 2024-2026      분석 기간 (기본: 워크북 기준설정 7행, 없으면 기준일 기준 최근 --연수 년)
+ *   --연수 3              연도를 못 찾았을 때 쓸 기본 연수 (기본 3)
  *   --본부최소 5          연평균 재직인원이 이보다 작은 본부는 [기타(미매핑)]로 합산 (기본 5)
- *   --교차표 12           본부 × 근속구간 교차표에 넣을 본부 수 (기본 12)
+ *   --교차표 12           본부 × 근속구간·퇴사사유 교차표에 넣을 본부 수 (기본 12)
  *   --직급상세 20         직급 상세 표에 넣을 직급 수 (기본 20)
  *   --keep-reasons        퇴사사유가 비어 있어도 JSX의 기존 사유 블록을 그대로 둠 (데모용)
  *   --out <경로>          교체할 JSX 경로 (기본: ../turnover_dashboard_prototype.jsx)
@@ -47,6 +48,7 @@ const 워크북 = path.resolve(ARGS.positional[0] || path.join(HERE, "..", "퇴�
 const 대상JSX = path.resolve(ARGS.opts.out || path.join(HERE, "..", "turnover_dashboard_prototype.jsx"));
 const 본부최소 = Number(ARGS.opts["본부최소"] ?? 5);
 const 교차표수 = Number(ARGS.opts["교차표"] ?? 12);
+const 기본연수 = Math.max(1, Number(ARGS.opts["연수"] ?? 3));
 const 직급상세수 = Number(ARGS.opts["직급상세"] ?? 20);
 const KEEP_REASONS = ARGS.flags.has("keep-reasons");
 const DRY = ARGS.flags.has("dry-run");
@@ -369,8 +371,8 @@ if (ARGS.opts["연도"]) {
 }
 if (연도.length === 0) {
   const endY = serialToYMD(기준일)[0];
-  연도 = [endY - 4, endY - 3, endY - 2, endY - 1, endY];
-  warn("분석 연도를 워크북에서 찾지 못해 " + 연도[0] + "~" + 연도.at(-1) + " 을 씁니다.");
+  연도 = Array.from({ length: 기본연수 }, (_, i) => endY - (기본연수 - 1 - i));
+  warn("분석 연도를 워크북에서 찾지 못해 최근 " + 기본연수 + "년(" + 연도[0] + "~" + 연도.at(-1) + ")을 씁니다.");
 }
 
 /* 근속구간 (기준설정 I·J) */
@@ -509,7 +511,8 @@ const 근속 = 근속구간.map(([name]) => ({
 }));
 const 조기구간수 = Math.max(1, 근속구간.filter(([, cap]) => cap <= 365).length);
 
-/* ---- 본부 × 근속구간 (분석 기간 누계) ---- */
+/* ---- 본부 × 근속구간 (연도별) ----
+   cnt[근속구간 인덱스][연도 인덱스] — 화면에서 선택 연도만 잘라 쓰거나 전 기간을 합쳐 씁니다. */
 const S0 = 기간[0].s, E9 = 기간.at(-1).e;
 const 본부X근속 = [...본부]
   .map((b) => ({ name: b.name, 누계: b.cnt.reduce((a, v) => a + v, 0) }))
@@ -518,8 +521,12 @@ const 본부X근속 = [...본부]
   .map(({ name }) => {
     const inScope = (x) =>
       name === 잔여라벨 ? !본부유지.some((b) => b.name === x.본부) : x.본부 === name;
-    const L = 퇴사in(직원.filter(inScope), S0, E9);
-    return { name, cnt: 근속구간.map(([bk]) => L.filter((x) => 구간of(x.퇴사 - x.입사) === bk).length) };
+    const sub = 직원.filter(inScope);
+    return {
+      name,
+      cnt: 근속구간.map(([bk]) =>
+        기간.map((p) => 퇴사in(sub, p.s, p.e).filter((x) => 구간of(x.퇴사 - x.입사) === bk).length)),
+    };
   });
 
 /* ---- 직급그룹 / 직급 상세 ---- */
@@ -551,6 +558,21 @@ if (사유_실측) {
 } else {
   warn("[퇴사사유]가 한 건도 입력되어 있지 않습니다. §4와 자발/비자발 KPI는 값을 낼 수 없습니다.");
 }
+
+/* ---- 본부 × 퇴사사유 (연도별) — §4 [본부별] 보기용 ----
+   행 순서는 본부X근속과 같고(퇴사 누계 상위), 열 순서는 위 [사유] 배열과 같습니다. */
+const 본부X사유 = 사유.length
+  ? 본부X근속.map(({ name }) => {
+      const inScope = (x) =>
+        name === 잔여라벨 ? !본부유지.some((b) => b.name === x.본부) : x.본부 === name;
+      const sub = 직원.filter(inScope);
+      return {
+        name,
+        cnt: 사유.map((r) =>
+          기간.map((p) => 퇴사in(sub, p.s, p.e).filter((x) => x.사유 === r.name).length)),
+      };
+    })
+  : [];
 
 /* ═══════════════════════════════════════════════════════════════════
    7. 정합성 검증
@@ -641,9 +663,9 @@ const 조기구간수 = ${조기구간수}; // 앞 ${조기구간수}개 구간 
    제외된 조직·직급도 [표] 보기에서는 그대로 보입니다. */
 const 최소분모 = 10;
 
-/* [②-표3] 본부 × 근속구간 ${연도.length}개년 누계 퇴사자 수 */
+/* [②-표3] 본부 × 근속구간 — cnt[근속구간 인덱스][연도 인덱스] · 근속구간 순서는 위 [근속] 배열과 같습니다 */
 const 본부X근속 = [
-${rowsBlock(본부X근속, false)}
+${본부X근속.map((r) => `  { name: ${q(r.name)}, cnt: [${r.cnt.map(arr).join(", ")}] },`).join("\n")}
 ];
 
 /* [③-표1] 직급그룹 × 연도 */
@@ -664,6 +686,13 @@ if (사유Block === null) {
 } else {
   block += `const 사유 = [\n${사유Block}\n];\n`;
 }
+
+block += `
+/* [④-표5] 본부 × 퇴사사유 — cnt[사유 인덱스][연도 인덱스] · 사유 순서는 위 [사유] 배열과 같습니다 */
+const 본부X사유 = [
+${본부X사유.map((r) => `  { name: ${q(r.name)}, cnt: [${r.cnt.map(arr).join(", ")}] },`).join("\n")}
+];
+`;
 
 block += `/* RawData [퇴사사유]가 실제로 입력되어 있으면 true. false면 §4와 자발/비자발 KPI는
    가상 분포이므로 화면에 경고를 띄웁니다. 생성기가 자동으로 갱신합니다. */
