@@ -6,7 +6,8 @@
   "scripts": {
     "data": "node tools/build-dashboard-data.mjs",
     "preview": "node tools/build-preview.mjs",
-    "build": "node tools/build-dashboard-data.mjs && node tools/build-preview.mjs"
+    "build": "node tools/build-dashboard-data.mjs && node tools/build-preview.mjs",
+    "build:deploy": "node tools/build-preview.mjs --out ../deploy/index.html"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
