@@ -1,2 +1,2 @@
-# HR-Project
-HR 관련 프로젝트 저장소
+# HR-채용현황 대시보드.
+채용현황 대시보드로, 현재 Google sheet, appsscript로 동기화 중
