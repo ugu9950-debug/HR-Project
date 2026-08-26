@@ -1,0 +1,19 @@
+{
+  "name": "turnover-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "퇴직율 분석 대시보드 프로토타입 — 템플릿 워크북 기반",
+  "scripts": {
+    "data": "node tools/build-dashboard-data.mjs",
+    "preview": "node tools/build-preview.mjs",
+    "build": "node tools/build-dashboard-data.mjs && node tools/build-preview.mjs",
+    "build:deploy": "node tools/build-preview.mjs --out ../deploy/index.html"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "lucide-react": "^0.469.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.15.0"
+  }
+}
