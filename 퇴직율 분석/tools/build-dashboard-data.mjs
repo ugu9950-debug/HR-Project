@@ -443,7 +443,11 @@ const 기간 = 연도.map((y) => {
 });
 const 진행중 = 기간.findIndex((p) => p.e < ymdToSerial(p.y, 12, 31));
 
-const 재직at = (list, at) => list.filter((x) => x.입사 <= at && (x.퇴사 == null || x.퇴사 > at)).length;
+/* 재직 판정 — [퇴사일]은 "마지막 근무일"로 봅니다. 즉 퇴사일 당일까지는 재직으로 셉니다.
+   퇴사자 카운트(퇴사in)가 [기초일, 기말일] 폐구간이므로 재직 판정도 폐구간으로 맞춘 것입니다.
+   (퇴사일을 "첫 미재직일"로 보려면 아래를 x.퇴사 > at 으로 되돌리세요.
+    그 경우 기초일에 퇴사한 인원이 분자(퇴사자)에는 잡히고 분모(기초 인원)에서는 빠집니다.) */
+const 재직at = (list, at) => list.filter((x) => x.입사 <= at && (x.퇴사 == null || x.퇴사 >= at)).length;
 const 퇴사in = (list, s, e) => list.filter((x) => x.퇴사 != null && x.퇴사 >= s && x.퇴사 <= e);
 const 입사in = (list, s, e) => list.filter((x) => x.입사 >= s && x.입사 <= e).length;
 const 평균재직 = (list, p) => (재직at(list, p.s) + 재직at(list, p.e)) / 2;
