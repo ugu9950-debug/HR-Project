@@ -118,6 +118,34 @@
   .measure { max-width: 68ch; }
 
   /* ── 표제 ───────────────────────────────────────── */
+  /* 대시보드로 돌아가는 링크 — 표제 줄에 함께 놓습니다 */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .topbar .kicker { margin-bottom: 0; }
+  .backlink {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 13px;
+    border: 1px solid var(--hair-strong);
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--ink-2);
+    font-size: 12.5px;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: border-color .15s ease, color .15s ease;
+  }
+  .backlink:hover { border-color: var(--accent); color: var(--accent); }
+  .backlink .arw { font-size: 14px; line-height: 1; }
+
   .masthead {
     border-bottom: 2px solid var(--ink);
     padding-bottom: 22px;
@@ -481,7 +509,10 @@
 <div class="page">
 
   <header class="masthead">
-    <div class="kicker">인사 데이터 분석 · 2024–2026</div>
+    <div class="topbar">
+      <div class="kicker">인사 데이터 분석 · 2024–2026</div>
+      <a class="backlink" href="https://hr-turnover-dashboard.vercel.app/"><span class="arw" aria-hidden="true">←</span>퇴직율 분석 대시보드</a>
+    </div>
     <h1>2025년은 추세가 아니라 사건이었다</h1>
     <p class="standfirst">
       전사 퇴직율은 정상으로 돌아왔다. 그러나 같은 기간, 신규 입사자가 조직에 정착하는 능력은

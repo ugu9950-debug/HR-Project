@@ -1109,14 +1109,46 @@ export default function TurnoverDashboard() {
       <style>{FONT_IMPORT + EXTRA_CSS}</style>
 
       {/* ── 헤더 ─────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: -1.1, lineHeight: 1.2 }}>
-          퇴직율 분석 대시보드
+      <div
+        style={{
+          marginBottom: 20,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: -1.1, lineHeight: 1.2 }}>
+            퇴직율 분석 대시보드
+          </div>
+          <div style={{ fontSize: 12.5, color: C.sub, marginTop: 6 }}>
+            {출처.파일} 기준 · 분석 기간 {기준.연도[0]} ~ {기준.연도[연도수 - 1]} ·
+            데이터 기준일 {기준.기준일}
+          </div>
         </div>
-        <div style={{ fontSize: 12.5, color: C.sub, marginTop: 6 }}>
-          {출처.파일} 기준 · 분석 기간 {기준.연도[0]} ~ {기준.연도[연도수 - 1]} ·
-          데이터 기준일 {기준.기준일}
-        </div>
+        {/* 같은 배포에 함께 올라가는 서술형 진단 보고서로 넘어가는 링크 */}
+        <a
+          href="report.html"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 14px",
+            background: C.card,
+            border: "1px solid " + C.border,
+            borderRadius: 10,
+            color: C.text,
+            fontSize: 12.5,
+            fontWeight: 600,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          진단 보고서 보기
+          <ChevronRight size={13} style={{ color: C.sub }} />
+        </a>
       </div>
 
       {/* ── 필터 행 (모든 섹션을 한 번에 스코프) ───────────────── */}
