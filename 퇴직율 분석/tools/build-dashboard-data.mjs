@@ -501,6 +501,16 @@ const 퇴사in = (list, s, e) => list.filter((x) => x.퇴사 != null && x.퇴사
 const 입사in = (list, s, e) => list.filter((x) => x.입사 >= s && x.입사 <= e).length;
 const 평균재직 = (list, p) => (재직at(list, p.s) + 재직at(list, p.e)) / 2;
 
+/* ---- 사유구분(자발/비자발) 축 — 대시보드 상단 [퇴직사유] 필터가 씁니다 ----
+   분자(퇴사자)만 구분별로 갈라지고 분모(평균 재직인원)는 전사 그대로 둡니다.
+   기존 [자발적 퇴직율] KPI와 같은 정의이며, 이 덕분에 avg 배열은 손대지 않습니다.
+   [기타]·[사유 미입력]은 따로 내보내지 않고 화면에서 (전체 − 자발 − 비자발)로 계산합니다. */
+const KINDS = ["자발적", "비자발적"];
+const 구분of = (x) => (x.사유 ? 사유구분맵.get(x.사유) || "기타" : "");
+/** 구분별 퇴사자 수 → k[구분 인덱스][연도 인덱스] */
+const kCnt = (list) =>
+  KINDS.map((kd) => 기간.map((p) => 퇴사in(list, p.s, p.e).filter((x) => 구분of(x) === kd).length));
+
 const 근속일 = (x) => (x.퇴사 != null ? x.퇴사 - x.입사 : 기준일 - x.입사);
 const 구간of = (days) => (근속구간.find(([, cap]) => days <= cap) || 근속구간.at(-1))[0];
 
@@ -529,6 +539,13 @@ const 종합 = {
     const L = 퇴사in(직원, p.s, p.e);
     return L.length ? r2(L.reduce((a, x) => a + (x.퇴사 - x.입사), 0) / L.length / 365) : 0;
   }),
+  /* [퇴직사유] 필터용 — 퇴사자 수와 퇴사자 평균 근속연수를 자발/비자발로 갈라 둡니다. */
+  퇴사구분: kCnt(직원),
+  평균근속년구분: KINDS.map((kd) =>
+    기간.map((p) => {
+      const L = 퇴사in(직원, p.s, p.e).filter((x) => 구분of(x) === kd);
+      return L.length ? r2(L.reduce((a, x) => a + (x.퇴사 - x.입사), 0) / L.length / 365) : 0;
+    })),
 };
 
 /* ---- 차원별 집계 헬퍼 ---- */
@@ -539,6 +556,7 @@ function 차원(keyFn, keys) {
       name: k,
       avg: 기간.map((p) => r1(평균재직(sub, p))),
       cnt: 기간.map((p) => 퇴사in(sub, p.s, p.e).length),
+      k: kCnt(sub),
     };
   });
 }
@@ -562,6 +580,9 @@ if (본부합산대상.length || 직원.some((x) => !x.본부)) {
       r1(Math.max(0, (재직at(직원, p.s) + 재직at(직원, p.e)) / 2 - 본부유지.reduce((a, b) => a + b.avg[i], 0)))),
     cnt: 기간.map((p, i) =>
       Math.max(0, 종합.퇴사[i] - 본부유지.reduce((a, b) => a + b.cnt[i], 0))),
+    k: KINDS.map((_, ki) =>
+      기간.map((p, i) =>
+        Math.max(0, 종합.퇴사구분[ki][i] - 본부유지.reduce((a, b) => a + b.k[ki][i], 0)))),
   };
   if (잔여.cnt.some((v) => v > 0) || 잔여.avg.some((v) => v > 0)) 본부.push(잔여);
   if (무본부.length) warn(`본부가 비어 있는 행 ${무본부.length}건 → [${잔여라벨}]로 합산했습니다.`);
@@ -572,6 +593,9 @@ if (코드형.length) warn(`본부가 코드값인 항목 ${코드형.length}종
 const 근속 = 근속구간.map(([name]) => ({
   name,
   cnt: 기간.map((p) => 퇴사in(직원, p.s, p.e).filter((x) => 구간of(x.퇴사 - x.입사) === name).length),
+  k: KINDS.map((kd) =>
+    기간.map((p) =>
+      퇴사in(직원, p.s, p.e).filter((x) => 구간of(x.퇴사 - x.입사) === name && 구분of(x) === kd).length)),
 }));
 const 조기구간수 = Math.max(1, 근속구간.filter(([, cap]) => cap <= 365).length);
 
@@ -590,6 +614,11 @@ const 본부X근속 = [...본부]
       name,
       cnt: 근속구간.map(([bk]) =>
         기간.map((p) => 퇴사in(sub, p.s, p.e).filter((x) => 구간of(x.퇴사 - x.입사) === bk).length)),
+      /* k[구분 인덱스][근속구간 인덱스][연도 인덱스] */
+      k: KINDS.map((kd) =>
+        근속구간.map(([bk]) =>
+          기간.map((p) =>
+            퇴사in(sub, p.s, p.e).filter((x) => 구간of(x.퇴사 - x.입사) === bk && 구분of(x) === kd).length))),
     };
   });
 
@@ -616,6 +645,7 @@ const 연령 = 연령키.map((k) => ({
   name: k,
   avg: 기간.map((p) => r1((연령재직at(k, p.s) + 연령재직at(k, p.e)) / 2)),
   cnt: 기간.map((p) => 연령퇴사in(k, p.s, p.e).length),
+  k: KINDS.map((kd) => 기간.map((p) => 연령퇴사in(k, p.s, p.e).filter((x) => 구분of(x) === kd).length)),
 }));
 
 const 생없음 = 직원.filter((x) => x.생 == null).length;
@@ -632,6 +662,12 @@ const 평균퇴사연령 = 기간.map((p) => {
   const L = 퇴사in(직원, p.s, p.e).filter((x) => x.생 != null);
   return L.length ? r1(L.reduce((a, x) => a + 만나이(x.생, x.퇴사), 0) / L.length) : 0;
 });
+/* [퇴직사유] 필터용 — 구분별 평균 퇴사 연령 */
+const 평균퇴사연령구분 = KINDS.map((kd) =>
+  기간.map((p) => {
+    const L = 퇴사in(직원, p.s, p.e).filter((x) => x.생 != null && 구분of(x) === kd);
+    return L.length ? r1(L.reduce((a, x) => a + 만나이(x.생, x.퇴사), 0) / L.length) : 0;
+  }));
 
 /* ---- 사원구분 (정규직·계약직 등 고용형태) ---- */
 const 구분키 = [...new Set(직원.map((x) => x.구분 || "(미입력)"))];
@@ -695,6 +731,7 @@ const 집계 = (list, name) => ({
   name,
   avg: 기간.map((p) => r1(평균재직(list, p))),
   cnt: 기간.map((p) => 퇴사in(list, p.s, p.e).length),
+  k: kCnt(list),
   사유: 사유.length ? 사유별(list) : [],
 });
 
@@ -740,6 +777,18 @@ const 확인 = (label, a, b) => {
     const 사유합 = 사유.reduce((a, b) => a + b.cnt[i], 0);
     if (사유합 > 0) 확인(`${p.y} 연령×사유 합`, 교차합, 사유합);
   }
+  /* 구분 축 — 차원별 자발/비자발 합이 전사 구분 합과 맞는지 */
+  KINDS.forEach((kd, ki) => {
+    const T = 종합.퇴사구분[ki][i];
+    확인(`${p.y} 본부 ${kd} 합`, 본부.reduce((a, b) => a + b.k[ki][i], 0), T);
+    확인(`${p.y} 근속 ${kd} 합`, 근속.reduce((a, b) => a + b.k[ki][i], 0), T);
+    확인(`${p.y} 직급그룹 ${kd} 합`, 직급그룹.reduce((a, b) => a + b.k[ki][i], 0), T);
+    확인(`${p.y} 연령 ${kd} 합`, 연령.reduce((a, b) => a + b.k[ki][i], 0), T);
+    확인(`${p.y} 조직 ${kd} 합`, 조직.reduce((a, b) => a + b.k[ki][i], 0), T);
+    확인(`${p.y} 부서 ${kd} 합`, 조직.reduce((a, b) => a + b.부서.reduce((x, d) => x + d.k[ki][i], 0), 0), T);
+    if (사유.length)
+      확인(`${p.y} 사유 ${kd} 합`, 사유.filter((r) => r.kind === kd).reduce((a, r) => a + r.cnt[i], 0), T);
+  });
   if (사유_실측) {
     const 사유합 = 사유.reduce((a, b) => a + b.cnt[i], 0);
     // 그 해에 사유가 한 건도 없으면 미입력 구간 — 불일치가 아니라 집계 범위 밖입니다.
@@ -770,7 +819,7 @@ const pad = (s, n) => s + " ".repeat(Math.max(0, n - [...s].reduce((w, ch) => w 
 function rowsBlock(rows, withAvg = true) {
   const w = Math.max(...rows.map((r) => [...q(r.name)].reduce((a, c) => a + (c.charCodeAt(0) > 0x2e80 ? 2 : 1), 0)));
   return rows
-    .map((r) => `  { name: ${pad(q(r.name) + ",", w + 1)} ${withAvg ? `avg: ${pad(arr(r.avg) + ",", 0)} ` : ""}cnt: ${arr(r.cnt)} },`)
+    .map((r) => `  { name: ${pad(q(r.name) + ",", w + 1)} ${withAvg ? `avg: ${pad(arr(r.avg) + ",", 0)} ` : ""}cnt: ${arr(r.cnt)}${r.k ? `, k: [${r.k.map(arr).join(", ")}]` : ""} },`)
     .join("\n");
 }
 
@@ -796,6 +845,10 @@ const 종합 = {
   입사: ${arr(종합.입사)},
   퇴사: ${arr(종합.퇴사)},
   평균근속년: ${arr(종합.평균근속년)},
+  /* [퇴직사유] 필터 축 — [자발적, 비자발적] × 연도.
+     [기타·사유 미입력]은 화면에서 (퇴사 − 자발 − 비자발)로 계산합니다. */
+  퇴사구분: [${종합.퇴사구분.map(arr).join(", ")}],
+  평균근속년구분: [${종합.평균근속년구분.map(arr).join(", ")}],
 };
 
 /* [①] 본부 × 연도 — avg = 평균 재직인원(명), cnt = 퇴사자 수(명) */
@@ -816,7 +869,7 @@ const 최소분모 = 10;
 
 /* [②-표3] 본부 × 근속구간 — cnt[근속구간 인덱스][연도 인덱스] · 근속구간 순서는 위 [근속] 배열과 같습니다 */
 const 본부X근속 = [
-${본부X근속.map((r) => `  { name: ${q(r.name)}, cnt: [${r.cnt.map(arr).join(", ")}] },`).join("\n")}
+${본부X근속.map((r) => `  { name: ${q(r.name)}, cnt: [${r.cnt.map(arr).join(", ")}], k: [${r.k.map((kk) => "[" + kk.map(arr).join(", ") + "]").join(", ")}] },`).join("\n")}
 ];
 
 /* [③-표1] 직급그룹 × 연도 */
@@ -863,13 +916,17 @@ ${연령X사유.map((r) => `  { name: ${q(r.name)}, cnt: [${r.cnt.map(arr).join(
 /* 연도별 퇴사자의 퇴사 시점 평균 만나이(세) — 생년월일이 있는 퇴사자만 */
 const 평균퇴사연령 = ${arr(평균퇴사연령)};
 
+/* [퇴직사유] 필터용 — 구분별 평균 퇴사 연령 [자발적, 비자발적] × 연도 */
+const 평균퇴사연령구분 = [${평균퇴사연령구분.map(arr).join(", ")}];
+
 /* [⑦] 본부 → 부서 2단 조직 트리 — 소표본 합산·상위 N 자르기 없이 전 조직을 그대로 담습니다.
-   avg = 평균 재직인원(명), cnt = 퇴사자 수(명), 사유[사유 인덱스][연도 인덱스] = 사유별 퇴사자 수.
+   avg = 평균 재직인원(명), cnt = 퇴사자 수(명), k[구분 인덱스][연도 인덱스] = 자발/비자발 퇴사자 수,
+   사유[사유 인덱스][연도 인덱스] = 사유별 퇴사자 수.
    사유 순서는 위 [사유] 배열과 같고, 부서 순서는 코드포인트 오름차순(엑셀 기본 텍스트 정렬)입니다.
    본부 순서는 화면에서 [본부순서](조직도 순서)로 다시 세웁니다. */
 const 조직 = [
-${조직.map((b) => `  { name: ${q(b.name)}, avg: ${arr(b.avg)}, cnt: ${arr(b.cnt)}, 사유: [${b.사유.map(arr).join(", ")}], 부서: [
-${b.부서.map((d) => `    { name: ${q(d.name)}, avg: ${arr(d.avg)}, cnt: ${arr(d.cnt)}, 사유: [${d.사유.map(arr).join(", ")}] },`).join("\n")}
+${조직.map((b) => `  { name: ${q(b.name)}, avg: ${arr(b.avg)}, cnt: ${arr(b.cnt)}, k: [${b.k.map(arr).join(", ")}], 사유: [${b.사유.map(arr).join(", ")}], 부서: [
+${b.부서.map((d) => `    { name: ${q(d.name)}, avg: ${arr(d.avg)}, cnt: ${arr(d.cnt)}, k: [${d.k.map(arr).join(", ")}], 사유: [${d.사유.map(arr).join(", ")}] },`).join("\n")}
   ] },`).join("\n")}
 ];
 `;
